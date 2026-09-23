@@ -1,3 +1,32 @@
+# XunHuai/sglang fork — MiniMax-H3 大画幅（2K）扩展
+
+> 基于 `v0.5.19`，分支 [`h3-2k`](https://github.com/XunHuai/sglang/tree/h3-2k)。官方 README 内容从下方 logo 处开始，未做任何改动。
+
+## 在原版基础上做了什么
+
+针对 MiniMax-H3（音视频联合 DiT）新增 **`h3_2k`** 扩展包（`python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/h3_2k/`，约 1800 行），对外仍是 `POST /v1/videos` 一个接口：
+
+- **两遍采样**：`target.short_edge > 768` 自动进入 pass1(768p) → latent 空间放大 → sigma 截断部分加噪 → pass2(大画幅)。768p 及以下请求走原路径，零影响
+- **放大方法可选**：3D 学习型 latent 放大网络（移植 LBH-123-AI/Minimax_h3_latent_Upscaler）或 32 像素对齐插值
+- **任务级 LoRA**：pass1 挂 Turbo LoRA 快出、pass2 请求级卸载提质（利用 scheduler 串行 forward，不污染服务级状态）
+- **音频冻结**：第二遍音频逐点保持 pass1 结果
+- **分片模式（tiling）**：MMH3 Split Upscale 完整移植——行锚冻结带（noise_mask 等效）、identity 锚、probe 门控缝修补、5+17m 网格时间分块、逐瓦片中值色校 + cross-fade 融合，2K 满档显存可控
+
+原版文件改动仅两处挂载点（各约 9 行 try-import，容错）：`minimax_h3_pipeline.py`、`openai/video_api.py`。
+
+验证状态：非分片路径真机端到端通过（768p 回归 + 2048×1152 出片）；分片路径离线自测通过、真机验证进行中。
+
+## Roadmap
+
+- [ ] 分片模式真机验证与参数标定（seam_cap / polish 触发率）
+- [ ] ref2va 参考条件按瓦片空间裁剪（crop_keyframes_to_tile 等效）
+- [ ] 瓦片 RoPE 坐标对齐（消除 1:1 归一化错位的彻底方案）
+- [ ] tiling 模式自动提高 DiT 常驻层数（权重搬运是当前瓦片耗时主因）
+- [ ] rebase 官方新版本（需先 `git fetch origin --unshallow --tags`）
+- [ ] 视质量决定是否向官方发起 PR
+
+---
+
 <div align="center" id="sglangtop">
 <img src="https://raw.githubusercontent.com/sgl-project/sglang/main/assets/logo.png" alt="logo" width="400" margin="10px"></img>
 
