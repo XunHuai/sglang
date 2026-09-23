@@ -864,3 +864,14 @@ async def download_video_content(
     return FileResponse(
         path=file_path, media_type=media_type, filename=os.path.basename(file_path)
     )
+
+
+# h3_2k: 大画幅（2K）单 API 两遍采样扩展——HTTP 侧钩子（可选，失败不影响服务）
+try:
+    from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.h3_2k import (
+        install_api_hooks as _h3_2k_install_api,
+    )
+
+    _h3_2k_install_api()
+except Exception:  # pragma: no cover
+    pass

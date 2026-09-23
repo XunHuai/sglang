@@ -171,3 +171,13 @@ class MiniMaxH3Pipeline(LoRAPipeline, ComposedPipelineBase):
 
 
 EntryClass = MiniMaxH3Pipeline
+
+# h3_2k: 大画幅（2K）两遍采样扩展——worker 侧捕获钩子（可选，失败不影响服务）
+try:
+    from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.h3_2k import (
+        install_worker_hooks as _h3_2k_install_worker,
+    )
+
+    _h3_2k_install_worker()
+except Exception:  # pragma: no cover
+    pass
