@@ -50,18 +50,25 @@ def install() -> None:
         # 任务级 LoRA：本 forward 内临时切换，结束恢复（scheduler 串行
         # forward，其它请求的 forward 看到的始终是服务级原状态）
         nickname = getattr(server_args, "lora_nickname", None)
-        restore_strength = float(getattr(server_args, "lora_scale", 1.0) or 1.0)
         if not nickname:
             logger.info("[h3_2k] pass2_lora=off 但服务未挂 LoRA，忽略")
             return _forward_nolora_override(self, batch, server_args)
-        logger.info(f"[h3_2k] pass2 LoRA 任务级切换: {nickname} "
-              f"strength {restore_strength} -> {lora_override}")
-        self.set_lora(nickname, None, "all", strength=float(lora_override))
+        logger.info(f"[h3_2k] pass2 LoRA 任务级关闭: {nickname}")
+        # set_lora(strength=0) 会为更新权重临时关闭 layerwise offload，
+        # 从而把全部 DiT 层回载到 GPU；24GB 卡会在 pass2 开始前直接 OOM。
+        # dynamic LoRA 的关闭只需切换 wrapper 标记，不需要搬运基础权重。
+        lora_layers = []
+        for attr in ("lora_layers", "lora_layers_transformer_2", "lora_layers_critic"):
+            lora_layers.extend(getattr(self, attr, {}).values())
+        restore_disabled = [bool(layer.disable_lora) for layer in lora_layers]
+        for layer in lora_layers:
+            layer.disable_lora = True
         try:
             return _forward_nolora_override(self, batch, server_args)
         finally:
-            self.set_lora(nickname, None, "all", strength=restore_strength)
-            logger.info(f"[h3_2k] pass2 LoRA 已恢复 strength={restore_strength}")
+            for layer, disabled in zip(lora_layers, restore_disabled):
+                layer.disable_lora = disabled
+            logger.info("[h3_2k] pass2 LoRA 状态已恢复")
 
     def _forward_nolora_override(self, batch, server_args):
         plan = (batch.extra or {}).get(H3_2K_PLAN_KEY)

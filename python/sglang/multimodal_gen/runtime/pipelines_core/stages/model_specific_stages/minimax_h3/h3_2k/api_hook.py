@@ -298,6 +298,12 @@ async def _run_second_pass(client, orig_forward, ob1, state, requests):
         upscaler = config.get_upscaler(plan["upscale"])
         target_hw = (px_h // 16, px_w // 16)
         grid_up, info = upscaler(state["video_latent"], 0.0, target_hw=target_hw)
+        # network upscaler 约占数 GB 显存，pass2 前必须同时释放闭包和缓存模型。
+        if plan["upscale"] == "network":
+            del upscaler
+            from . import upscale_network
+
+            upscale_network.release_cached_model()
         _, _, _, h2, w2 = (int(x) for x in grid_up.shape)
         if (h2, w2) != target_hw:
             raise ValueError(

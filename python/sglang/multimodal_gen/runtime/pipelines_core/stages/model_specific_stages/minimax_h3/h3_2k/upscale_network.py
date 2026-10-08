@@ -167,6 +167,16 @@ def _cached_model(weights_path: str, device: str, dtype: str):
     return model, dt
 
 
+def release_cached_model() -> None:
+    """释放放大网络的 GPU 常驻权重，给后续 pass2 降噪让出显存。"""
+    import gc
+
+    _cached_model.cache_clear()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def load_upscale_fn(weights_name: str | None = None, device: str = "cuda",
                     dtype: str = "fp16"):
     """返回 callable(latent5d, scale) -> (latent5d', info)。
